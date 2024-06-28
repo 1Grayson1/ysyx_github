@@ -23,9 +23,36 @@ const char *regs[] = {
   "s8", "s9", "s10", "s11", "t3", "t4", "t5", "t6"
 };
 
+int reg_num = ARRLEN(regs);
+/*
 void isa_reg_display() {
+  int len = sizeof(regs) / sizeof(regs[0]);
+  for(int i = 0; i<len; i++)
+    printf("reg %s -- %d\n",regs[i], cpu.gpr[i]);
+}
+*/
+
+void isa_reg_display() {
+    vaddr_t pc_val=cpu.pc;
+    printf("pc  0x%8x\n",pc_val);
+
+    for(int i=0;i<reg_num;++i){
+        vaddr_t val=cpu.gpr[i];
+        printf("%s  %x\n",regs[i],val);
+    }
 }
 
+
 word_t isa_reg_str2val(const char *s, bool *success) {
+  if(strcmp(s,"$pc")==0){
+    *success=true;
+    return cpu.pc;
+  }
+  for(int i=0;i<reg_num;++i)
+    if(strcmp(s+1,regs[i])==0){
+      *success=true;
+      return cpu.gpr[i];
+    } 
+  *success=false;  
   return 0;
 }

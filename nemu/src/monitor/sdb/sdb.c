@@ -18,6 +18,9 @@
 #include <readline/readline.h>
 #include <readline/history.h>
 #include "sdb.h"
+#include <memory/host.h>
+#include <memory/paddr.h>
+#include <memory/vaddr.h>
 
 static int is_batch_mode = false;
 
@@ -49,10 +52,113 @@ static int cmd_c(char *args) {
 
 
 static int cmd_q(char *args) {
+  nemu_state.state = NEMU_QUIT;
   return -1;
 }
 
+
 static int cmd_help(char *args);
+
+
+// single step
+static int cmd_si(char *args){
+  char *arg = strtok(args," ");
+  int step = 0;
+  if(arg == NULL)
+    step = 1;
+  else 
+    step = atoi(arg);
+  cpu_exec(step);
+  return 0;
+}
+
+
+static int cmd_info(char *args){
+  char *arg = strtok(NULL, " ");
+    if(arg == NULL)
+        printf("No args.\n");
+    else if(strcmp(arg, "r") == 0)
+        isa_reg_display();
+    else if(strcmp(arg, "w") == 0)
+        sdb_watchpoint_display();
+
+    return 0;
+}
+
+
+
+// print memory
+static int cmd_x(char *args){
+  char *arg1 = strtok(NULL, " ");
+  if (arg1 == NULL) {
+    printf("Legal form: x N EXPR\n");
+    return 0;
+  }
+  char *arg2 = strtok(NULL, " ");
+  if (arg1 == NULL) {
+    printf("Legal form: x N EXPR\n");
+    return 0;
+  }
+
+  int n = strtol(arg1, NULL, 10);
+  paddr_t expr = strtol(arg2, NULL, 16);
+
+  int i,j;
+  for (i = 0; i < n;) {
+    printf(ANSI_FMT("0x%08x: ", ANSI_FG_CYAN), expr);
+    
+  for (j = 0; i < n && j < 4; i++, j++) {
+      word_t w = paddr_read(expr, 4);
+      expr += 4;
+      printf("0x%08x ", w);
+  }
+    puts("");
+  }
+    return 0;
+}
+
+
+// expression
+static int cmd_p(char* args) {
+  bool success = true;
+  word_t res = expr(args, &success);
+  if (!success) {
+    puts("invalid expression");
+  } else {
+    printf("%u\n", res);
+  }
+  return 0;
+}
+
+
+// watchpoint
+static int cmd_w(char* args) {
+  if (!args) {
+    printf("Usage: w EXPR\n");
+    return 0;
+  }
+  bool success;
+  word_t res = expr(args, &success);
+  if (!success) {
+    puts("invalid expression");
+  } else {
+    wp_watch(args, res);
+  }
+  return 0;
+}
+
+static int cmd_d(char* args) {
+  char *arg = strtok(NULL, "");
+  if (!arg) {
+    printf("Form: d N\n");
+    return 0;
+  }
+  int no = strtol(arg, NULL, 10);
+  wp_remove(no);
+  return 0;
+}
+
+
 
 static struct {
   const char *name;
@@ -62,6 +168,12 @@ static struct {
   { "help", "Display information about all supported commands", cmd_help },
   { "c", "Continue the execution of the program", cmd_c },
   { "q", "Exit NEMU", cmd_q },
+  { "si", "Single Step", cmd_si },
+  { "info", "Print Register or Watch Point", cmd_info },
+  { "x", "Print Memory", cmd_x },
+  { "p", "solve expression; Form: p expression", cmd_p },
+  { "w", "Form: w EXPR. Watch for the variation of the result of EXPR, pause at variation point", cmd_w },
+  { "d", "Form: d N. Delete watchpoint of Wp.NO=N", cmd_d },
 
   /* TODO: Add more commands */
 

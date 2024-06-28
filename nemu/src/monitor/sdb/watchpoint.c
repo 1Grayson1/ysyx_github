@@ -23,6 +23,9 @@ typedef struct watchpoint {
 
   /* TODO: Add more members if necessary */
 
+  char expr[100];
+  int old_value;
+
 } WP;
 
 static WP wp_pool[NR_WP] = {};
@@ -41,3 +44,68 @@ void init_wp_pool() {
 
 /* TODO: Implement the functionality of watchpoint */
 
+static WP* new_wp() {
+  assert(free_);
+  WP* ret = free_;
+  free_ = free_->next;
+  ret->next = head;
+  head = ret;
+  return ret;
+}
+
+static void free_wp(WP *wp) {
+  WP* h = head;
+  if (h == wp) head = NULL;
+  else {
+    while (h && h->next != wp) h = h->next;
+    assert(h);
+    h->next = wp->next;
+  }
+  wp->next = free_;
+  free_ = wp;
+}
+
+
+void wp_watch(char *expr, word_t res) {
+  WP* wp = new_wp();
+  strcpy(wp->expr, expr);
+  wp->old_value = res;
+  printf("Watchpoint %d: %s\n", wp->NO, expr);
+}
+
+void wp_remove(int no) {
+  assert(no < NR_WP);
+  WP* wp = &wp_pool[no];
+  free_wp(wp);
+  printf("Delete watchpoint %d: %s\n", wp->NO, wp->expr);
+}
+
+void sdb_watchpoint_display() {
+  WP* h = head;
+  if (!h) {
+    puts("No watchpoints.");
+    return;
+  }
+  printf("%-8s%-20s%-8s\n", "Wp_Num", "Expr", "Value");
+  while (h) {
+    printf("%-8d%-20s%-8d\n", h->NO, h->expr, h->old_value);
+    h = h->next;
+  }
+}
+
+void wp_difftest() {
+  WP* h = head;
+  while (h) {
+    bool _;
+    word_t new = expr(h->expr, &_);
+    if (h->old_value != new) {
+      printf("Watchpoint %d: %s\n"
+        "Old value = %u\n"
+        "New value = %u\n"
+        , h->NO, h->expr, h->old_value, new);
+      h->old_value = new;
+      nemu_state.state = NEMU_STOP;
+    }
+    h = h->next;
+  }
+}
